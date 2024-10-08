@@ -1,7 +1,19 @@
+from typing import Any, Dict
+
 from pandas import DataFrame
 from pydantic import BaseModel, ConfigDict, create_model
 
 from hayhooks.server.utils.create_valid_type import handle_unsupported_types
+
+UNSUPPORTED_TYPES_MAPPING: Dict[Any, Any] = {DataFrame: dict}
+
+try:
+    from qdrant_client.http import models
+
+    UNSUPPORTED_TYPES_MAPPING[models.Filter] = dict
+
+except ImportError:
+    pass
 
 
 class PipelineDefinition(BaseModel):
@@ -27,7 +39,7 @@ def get_request_model(pipeline_name: str, pipeline_inputs):
         component_model = {}
         for name, typedef in inputs.items():
             try:
-                input_type = handle_unsupported_types(typedef["type"], {DataFrame: dict})
+                input_type = handle_unsupported_types(typedef["type"], UNSUPPORTED_TYPES_MAPPING)
             except TypeError as e:
                 print(f"ERROR at {component_name!r}, {name}: {typedef}")
                 raise e
@@ -55,7 +67,7 @@ def get_response_model(pipeline_name: str, pipeline_outputs):
         component_model = {}
         for name, typedef in outputs.items():
             output_type = typedef["type"]
-            component_model[name] = (handle_unsupported_types(output_type, {DataFrame: dict}), ...)
+            component_model[name] = (handle_unsupported_types(output_type, UNSUPPORTED_TYPES_MAPPING), ...)
         response_model[component_name] = (create_model("ComponentParams", **component_model, __config__=config), ...)
 
     return create_model(f"{pipeline_name.capitalize()}RunResponse", **response_model, __config__=config)
